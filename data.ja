@@ -1,8 +1,8 @@
 const CORRECT_PASS = "0904";
 
 const GH_REPO_CONFIG = {
-    USERNAME: "ĐIỀN_USERNAME_GITHUB_CỦA_ÔNG", 
-    REPO_NAME: "ĐIỀN_TÊN_REPO_CHỨA_FILE",     
+    USERNAME: "hothiptv", 
+    REPO_NAME: "ANUPLOAD",     
     BRANCH: "main"
 };
 

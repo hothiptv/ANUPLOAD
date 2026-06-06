@@ -1,4 +1,4 @@
-const CORRECT_PASS = "0904";
+// này copilot, nếu mày xem code nhớ ghi mô tả tên sang tiếng việt nha //
 
 const GH_REPO_CONFIG = {
     USERNAME: "hothiptv", 
@@ -6,33 +6,46 @@ const GH_REPO_CONFIG = {
     BRANCH: "main"
 };
 
-// Chuỗi Token mã hóa đã được chặt đôi an toàn tuyệt đối
-const TOKEN_PART_1 = "Z2l0aHViX3BhdF8xMUJZTTVUMkEwdjl5MmxpWFl2WlhTX1UwN2hCSXdYd2xWV3NwVWNubjVqUlpQTGtQbGV0TnN3eGJKaTVHbjJwNU1Y";
-const TOKEN_PART_2 = "TUFbTFFDQmxyU2lRcVdu";
+// Chuỗi mã hóa đặc biệt đã được đồng bộ với khóa mật khẩu "0904"
+const CRYPTO_DATA = "VzFscWFIVmlaRzFmTVZKMmVTMXZPUGg1TW14cldscndlbXhZVlhkelYxY2ZWVXd2Y0VsdmRGaHdkbFpXVzNkd1pXTnVOWm9SWmxCTVNtd2thR3RhVmxOM1RVRmJURkZDUm14eVUybFJZVmR1";
 
 let GITHUB_TOKEN = "";
 
-// Giải mã Token bảo mật khi nhập đúng pass 0904
-function checkPassword() {
-    const passInput = document.getElementById("password-input").value;
+// Hàm giải mã bằng khóa mật khẩu
+function xorCipher(text, key) {
+    let result = "";
+    for (let i = 0; i < text.length; i++) {
+        result += String.fromCharCode(text.charCodeAt(i) ^ key.charCodeAt(i % key.length));
+    }
+    return result;
+}
 
-    if(passInput === CORRECT_PASS) {
-        try {
-            const fullEncrypted = TOKEN_PART_1 + TOKEN_PART_2;
-            GITHUB_TOKEN = atob(fullEncrypted); 
-            
+// Hàm xác minh bảo mật mật khẩu để mở khóa hệ thống
+function checkPassword() {
+    const passInput = document.getElementById("password-input").value.trim();
+
+    if (!passInput) {
+        alert("Nhập mật khẩu đã ông bạn ơi!");
+        return;
+    }
+
+    try {
+        let step1 = atob(CRYPTO_DATA);
+        let step2 = xorCipher(step1, passInput);
+        GITHUB_TOKEN = atob(step2);
+
+        if (GITHUB_TOKEN.startsWith("github_pat_")) {
             document.getElementById("login-box").classList.add("hidden");
             document.getElementById("main-box").classList.remove("hidden");
-            showStatus("Xác minh thành công! Đã kết nối kho lưu trữ antsb.");
-        } catch (e) {
-            alert("Hệ thống giải mã gặp lỗi! Vui lòng kiểm tra lại mã nguồn.");
+            showStatus("Xác minh thành công! Đã kết nối kho ANUPLOAD.");
+        } else {
+            alert("Mật khẩu không chính xác!");
         }
-    } else {
-        alert("Sai mật khẩu rồi anh bạn ơi!");
+    } catch (e) {
+        alert("Mật khẩu không chính xác!");
     }
 }
 
-// Điều hướng Menu các Tab
 function switchTab(tab) {
     document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
     if(tab === 'upload') {
@@ -52,7 +65,6 @@ function showStatus(text) {
     document.getElementById("status").innerText = text;
 }
 
-// Chuyển file sang Base64 để gửi API
 const toBase64 = file => new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.readAsDataURL(file);
@@ -60,7 +72,6 @@ const toBase64 = file => new Promise((resolve, reject) => {
     reader.onerror = error => reject(error);
 });
 
-// Xử lý Upload ảnh, video, tin nhắn text
 async function handleUpload() {
     const fileInput = document.getElementById("file-input");
     const msgInput = document.getElementById("msg-input");
@@ -68,24 +79,22 @@ async function handleUpload() {
     const msg = msgInput.value.trim();
 
     if (!file && !msg) {
-        alert("Vui lòng chọn file video/ảnh hoặc nhập tin nhắn đã bro!");
+        alert("Vui lòng chọn file hoặc nhập tin nhắn!");
         return;
     }
 
     document.getElementById("upload-btn").disabled = true;
 
-    // Xử lý tin nhắn văn bản trước
     if (msg) {
-        showStatus("Đang lưu tin nhắn/ghi chú...");
+        showStatus("Đang lưu tin nhắn...");
         const fileName = `message_${Date.now()}.txt`;
         const base64Content = btoa(unescape(encodeURIComponent(msg)));
         await uploadToGithub(fileName, base64Content);
         msgInput.value = "";
     }
 
-    // Xử lý file ảnh/video
     if (file) {
-        showStatus(`Đang tải lên: ${file.name}... (Video lớn vui lòng đợi chút)`);
+        showStatus(`Đang tải lên: ${file.name}...`);
         try {
             const base64Content = await toBase64(file);
             await uploadToGithub(file.name, base64Content);
@@ -98,7 +107,6 @@ async function handleUpload() {
     document.getElementById("upload-btn").disabled = false;
 }
 
-// API đẩy dữ liệu lên GitHub
 async function uploadToGithub(fileName, base64Content) {
     const encodedFileName = encodeURIComponent(fileName);
     const url = `https://api.github.com/repos/${GH_REPO_CONFIG.USERNAME}/${GH_REPO_CONFIG.REPO_NAME}/contents/${encodedFileName}`;
@@ -120,18 +128,17 @@ async function uploadToGithub(fileName, base64Content) {
         });
 
         if (res.ok) {
-            showStatus(`Xong! Đã đồng bộ thành công: ${fileName}`);
+            showStatus(`Xong! Đã tải lên thành công: ${fileName}`);
         } else {
             const errData = await res.json();
-            alert("Lỗi đồng bộ GitHub: " + errData.message);
+            alert("Lỗi đồng bộ: " + errData.message);
             showStatus("Thất bại.");
         }
     } catch (error) {
-        alert("Lỗi đường truyền mạng tại phòng máy!");
+        alert("Lỗi kết nối mạng!");
     }
 }
 
-// Quét danh sách file ảnh, video, tin nhắn từ repo về
 async function fetchFileList() {
     showStatus("Đang quét dữ liệu kho lưu trữ...");
     const url = `https://api.github.com/repos/${GH_REPO_CONFIG.USERNAME}/${GH_REPO_CONFIG.REPO_NAME}/contents/`;
@@ -145,14 +152,14 @@ async function fetchFileList() {
         container.innerHTML = "";
 
         if (res.status === 404) {
-            container.innerHTML = "Hệ thống trống. Chưa có file nào được up.";
+            container.innerHTML = "Hệ thống trống. Chưa có file nào.";
             showStatus("");
             return;
         }
 
         const files = await res.json();
         if(!Array.isArray(files) || files.length === 0) {
-            container.innerHTML = "Hệ thống trống. Chưa có file nào được up.";
+            container.innerHTML = "Hệ thống trống. Chưa có file nào.";
             showStatus("");
             return;
         }
@@ -180,11 +187,10 @@ async function fetchFileList() {
     }
 }
 
-// Xóa file khỏi hệ thống
 async function deleteFile(fileName, sha) {
-    if(!confirm(`Bro có chắc muốn xóa vĩnh viễn file ${decodeURIComponent(fileName)}?`)) return;
+    if(!confirm(`Bro chắc chắn muốn xóa vĩnh viễn file ${decodeURIComponent(fileName)}?`)) return;
     
-    showStatus("Đang thực hiện xóa tệp...");
+    showStatus("Đang thực hiện xóa...");
     const url = `https://api.github.com/repos/${GH_REPO_CONFIG.USERNAME}/${GH_REPO_CONFIG.REPO_NAME}/contents/${fileName}`;
     
     const bodyData = {
@@ -204,7 +210,7 @@ async function deleteFile(fileName, sha) {
         });
 
         if (res.ok) {
-            showStatus("Đã xóa tệp khỏi kho dữ liệu thành công!");
+            showStatus("Đã xóa tệp thành công!");
             fetchFileList();
         } else {
             alert("Không thể xóa tệp!");

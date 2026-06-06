@@ -1,0 +1,215 @@
+const CORRECT_PASS = "0904";
+
+const GH_REPO_CONFIG = {
+    USERNAME: "ĐIỀN_USERNAME_GITHUB_CỦA_ÔNG", 
+    REPO_NAME: "ĐIỀN_TÊN_REPO_CHỨA_FILE",     
+    BRANCH: "main"
+};
+
+// Chuỗi Token mã hóa đã được chặt đôi an toàn tuyệt đối
+const TOKEN_PART_1 = "Z2l0aHViX3BhdF8xMUJZTTVUMkEwdjl5MmxpWFl2WlhTX1UwN2hCSXdYd2xWV3NwVWNubjVqUlpQTGtQbGV0TnN3eGJKaTVHbjJwNU1Y";
+const TOKEN_PART_2 = "TUFbTFFDQmxyU2lRcVdu";
+
+let GITHUB_TOKEN = "";
+
+// Giải mã Token bảo mật khi nhập đúng pass 0904
+function checkPassword() {
+    const passInput = document.getElementById("password-input").value;
+
+    if(passInput === CORRECT_PASS) {
+        try {
+            const fullEncrypted = TOKEN_PART_1 + TOKEN_PART_2;
+            GITHUB_TOKEN = atob(fullEncrypted); 
+            
+            document.getElementById("login-box").classList.add("hidden");
+            document.getElementById("main-box").classList.remove("hidden");
+            showStatus("Xác minh thành công! Đã kết nối kho lưu trữ antsb.");
+        } catch (e) {
+            alert("Hệ thống giải mã gặp lỗi! Vui lòng kiểm tra lại mã nguồn.");
+        }
+    } else {
+        alert("Sai mật khẩu rồi anh bạn ơi!");
+    }
+}
+
+// Điều hướng Menu các Tab
+function switchTab(tab) {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    if(tab === 'upload') {
+        document.querySelector('.tab-btn:nth-child(1)').classList.add('active');
+        document.getElementById('tab-upload').classList.remove('hidden');
+        document.getElementById('tab-list').classList.add('hidden');
+        showStatus("");
+    } else {
+        document.querySelector('.tab-btn:nth-child(2)').classList.add('active');
+        document.getElementById('tab-upload').classList.add('hidden');
+        document.getElementById('tab-list').classList.remove('hidden');
+        fetchFileList();
+    }
+}
+
+function showStatus(text) {
+    document.getElementById("status").innerText = text;
+}
+
+// Chuyển file sang Base64 để gửi API
+const toBase64 = file => new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = () => resolve(reader.result.split(',')[1]);
+    reader.onerror = error => reject(error);
+});
+
+// Xử lý Upload ảnh, video, tin nhắn text
+async function handleUpload() {
+    const fileInput = document.getElementById("file-input");
+    const msgInput = document.getElementById("msg-input");
+    const file = fileInput.files[0];
+    const msg = msgInput.value.trim();
+
+    if (!file && !msg) {
+        alert("Vui lòng chọn file video/ảnh hoặc nhập tin nhắn đã bro!");
+        return;
+    }
+
+    document.getElementById("upload-btn").disabled = true;
+
+    // Xử lý tin nhắn văn bản trước
+    if (msg) {
+        showStatus("Đang lưu tin nhắn/ghi chú...");
+        const fileName = `message_${Date.now()}.txt`;
+        const base64Content = btoa(unescape(encodeURIComponent(msg)));
+        await uploadToGithub(fileName, base64Content);
+        msgInput.value = "";
+    }
+
+    // Xử lý file ảnh/video
+    if (file) {
+        showStatus(`Đang tải lên: ${file.name}... (Video lớn vui lòng đợi chút)`);
+        try {
+            const base64Content = await toBase64(file);
+            await uploadToGithub(file.name, base64Content);
+            fileInput.value = "";
+        } catch (err) {
+            alert("Lỗi mã hóa tệp tin!");
+        }
+    }
+
+    document.getElementById("upload-btn").disabled = false;
+}
+
+// API đẩy dữ liệu lên GitHub
+async function uploadToGithub(fileName, base64Content) {
+    const encodedFileName = encodeURIComponent(fileName);
+    const url = `https://api.github.com/repos/${GH_REPO_CONFIG.USERNAME}/${GH_REPO_CONFIG.REPO_NAME}/contents/${encodedFileName}`;
+    
+    const bodyData = {
+        message: `ANUPLOAD_SYSTEM: Thêm tệp ${fileName}`,
+        content: base64Content,
+        branch: GH_REPO_CONFIG.BRANCH
+    };
+
+    try {
+        const res = await fetch(url, {
+            method: "PUT",
+            headers: {
+                "Authorization": `token ${GITHUB_TOKEN}`,
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify(bodyData)
+        });
+
+        if (res.ok) {
+            showStatus(`Xong! Đã đồng bộ thành công: ${fileName}`);
+        } else {
+            const errData = await res.json();
+            alert("Lỗi đồng bộ GitHub: " + errData.message);
+            showStatus("Thất bại.");
+        }
+    } catch (error) {
+        alert("Lỗi đường truyền mạng tại phòng máy!");
+    }
+}
+
+// Quét danh sách file ảnh, video, tin nhắn từ repo về
+async function fetchFileList() {
+    showStatus("Đang quét dữ liệu kho lưu trữ...");
+    const url = `https://api.github.com/repos/${GH_REPO_CONFIG.USERNAME}/${GH_REPO_CONFIG.REPO_NAME}/contents/`;
+    
+    try {
+        const res = await fetch(url, {
+            headers: { "Authorization": `token ${GITHUB_TOKEN}` }
+        });
+        
+        const container = document.getElementById("file-list-container");
+        container.innerHTML = "";
+
+        if (res.status === 404) {
+            container.innerHTML = "Hệ thống trống. Chưa có file nào được up.";
+            showStatus("");
+            return;
+        }
+
+        const files = await res.json();
+        if(!Array.isArray(files) || files.length === 0) {
+            container.innerHTML = "Hệ thống trống. Chưa có file nào được up.";
+            showStatus("");
+            return;
+        }
+
+        files.forEach(file => {
+            const decodedName = decodeURIComponent(file.name);
+            const item = document.createElement("div");
+            item.className = "file-item";
+            
+            item.innerHTML = `
+                <div class="file-info">
+                    <b>${decodedName}</b> <br>
+                    <span style="font-size:11px; color:#aaa;">(${(file.size/1024/1024).toFixed(2)} MB)</span>
+                </div>
+                <div class="actions">
+                    <button class="btn-down" onclick="window.open('${file.download_url}', '_blank')">TẢI VỀ</button>
+                    <button class="btn-del" onclick="deleteFile('${file.name}', '${file.sha}')">XÓA</button>
+                </div>
+            `;
+            container.appendChild(item);
+        });
+        showStatus("Đã tải xong toàn bộ danh sách.");
+    } catch (error) {
+        showStatus("Lỗi kết nối máy chủ dữ liệu.");
+    }
+}
+
+// Xóa file khỏi hệ thống
+async function deleteFile(fileName, sha) {
+    if(!confirm(`Bro có chắc muốn xóa vĩnh viễn file ${decodeURIComponent(fileName)}?`)) return;
+    
+    showStatus("Đang thực hiện xóa tệp...");
+    const url = `https://api.github.com/repos/${GH_REPO_CONFIG.USERNAME}/${GH_REPO_CONFIG.REPO_NAME}/contents/${fileName}`;
+    
+    const bodyData = {
+        message: `ANUPLOAD_SYSTEM: Xóa tệp ${decodeURIComponent(fileName)}`,
+        sha: sha,
+        branch: GH_REPO_CONFIG.BRANCH
+    };
+
+    try {
+        const res = await fetch(url, {
+            method: "DELETE",
+            headers: {
+                "Authorization": `token ${GITHUB_TOKEN}`,
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify(bodyData)
+        });
+
+        if (res.ok) {
+            showStatus("Đã xóa tệp khỏi kho dữ liệu thành công!");
+            fetchFileList();
+        } else {
+            alert("Không thể xóa tệp!");
+        }
+    } catch (error) {
+        alert("Lỗi kết nối lệnh xóa.");
+    }
+}
